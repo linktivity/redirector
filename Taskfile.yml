@@ -1,0 +1,29 @@
+version: "3"
+
+vars:
+  TIMEZONE: Asia/Tokyo
+  TIMESTAMP:
+    sh: git show -s --format=%cI $(git rev-parse --short HEAD)
+  GIT_TIMESTAMP: '{{ dateInZone "20060102" (mustToDate "2006-01-02T15:04:05-07:00" .TIMESTAMP) .TIMEZONE }}'
+  GIT_VERSION:
+    sh: git describe --exact-match --tags $(git rev-parse --short HEAD) 2>/dev/null || git rev-parse --short HEAD
+  GIT_CHANGES:
+    sh: git status . --porcelain
+  IMAGE_TAG_SUFFIX: "{{ if .IMAGE_TAG_SUFFIX }}-{{ .IMAGE_TAG_SUFFIX }}{{ else if .GIT_CHANGES -}} -dirty {{- end }}"
+  IMAGE_TAG: "{{ default (print .GIT_VERSION .IMAGE_TAG_SUFFIX) .IMAGE_TAG }}"
+  DIST:
+    sh: echo $(pwd)/dist
+  IMAGE: '{{default (print "gcr.io/linktivity-gds-platform/redirector:" .IMAGE_TAG) .IMAGE}}'
+
+tasks:
+  docker:build:
+    cmds:
+      - mkdir -p dist
+      - go build -ldflags "{{ .LD_FLAGS }}" -o dist/redirector .
+      - docker buildx build . -t {{ .IMAGE }} --platform linux/amd64
+      - rm -rf dist
+    env:
+      CGO_ENABLED: 0
+      GOBIN: "{{ .DIST }}"
+      GOOS: linux
+      GOARCH: amd64
