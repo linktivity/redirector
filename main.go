@@ -55,13 +55,15 @@ func NewProxy(targetHost string) (*httputil.ReverseProxy, error) {
 	if err != nil {
 		return nil, err
 	}
+	// overwrite the host header
+	host := url.Hostname()
 
 	proxy := httputil.NewSingleHostReverseProxy(url)
 
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
 		originalDirector(req)
-		modifyRequest(req)
+		modifyRequest(req, host)
 	}
 	proxy.ModifyResponse = modifyResponse
 
@@ -98,9 +100,10 @@ func modifyResponse(resp *http.Response) error {
 	return nil
 }
 
-func modifyRequest(req *http.Request) {
+func modifyRequest(req *http.Request, host string) {
 	req.Header.Set("X-Proxy", "protector")
 	req.Header.Set("x-protector-token", protectorToken)
+	req.Host = host
 }
 
 func errorHandler() func(http.ResponseWriter, *http.Request, error) {
